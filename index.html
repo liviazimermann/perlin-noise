@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Perlin Noise — SIGGRAPH 1985</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #0f1117;
+      --surface:  #1a1d27;
+      --border:   #2a2d3a;
+      --text:     #e8eaf0;
+      --muted:    #7a7f9a;
+      --accent:   #5b8dee;
+      --accent2:  #3ecf8e;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      font-size: 14px;
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 1fr 300px;
+      grid-template-rows: auto 1fr auto;
+      gap: 0;
+    }
+
+    /* ── Header ── */
+    header {
+      grid-column: 1 / -1;
+      padding: 18px 24px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: baseline;
+      gap: 14px;
+    }
+    header h1 { font-size: 17px; font-weight: 600; letter-spacing: -.01em; }
+    header .chip {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      color: var(--muted);
+    }
+    header .authors {
+      margin-left: auto;
+      font-size: 12px;
+      color: var(--muted);
+      text-align: right;
+      line-height: 1.6;
+    }
+
+    /* ── Canvas area ── */
+    #canvas-wrap {
+      position: relative;
+      background: #000;
+    }
+    #cv {
+      display: block;
+      width: 100%;
+      height: 100%;
+      image-rendering: pixelated;
+    }
+    #fps-badge {
+      position: absolute;
+      top: 10px; left: 10px;
+      font-size: 11px;
+      background: rgba(0,0,0,.6);
+      color: #aaa;
+      padding: 2px 7px;
+      border-radius: 4px;
+      pointer-events: none;
+    }
+
+    /* ── Sidebar ── */
+    aside {
+      border-left: 1px solid var(--border);
+      padding: 20px 16px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .section-title {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+
+    /* Mode buttons */
+    .mode-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+    .mode-btn {
+      padding: 7px 0;
+      font-size: 12px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--muted);
+      cursor: pointer;
+      transition: all .15s;
+      text-align: center;
+    }
+    .mode-btn:hover { border-color: var(--accent); color: var(--text); }
+    .mode-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+
+    /* Sliders */
+    .slider-group { display: flex; flex-direction: column; gap: 12px; }
+    .slider-row { display: flex; flex-direction: column; gap: 4px; }
+    .slider-header { display: flex; justify-content: space-between; align-items: baseline; }
+    .slider-label { font-size: 12px; color: var(--muted); }
+    .slider-val { font-size: 13px; font-weight: 600; color: var(--accent); }
+
+    input[type=range] {
+      width: 100%;
+      accent-color: var(--accent);
+      height: 4px;
+      cursor: pointer;
+    }
+
+    /* Oct visualizer */
+    .oct-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+    .oct-item { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+    .oct-item canvas { border-radius: 4px; border: 1px solid var(--border); display: block; }
+    .oct-item span { font-size: 10px; color: var(--muted); }
+
+    /* Play button */
+    .play-btn {
+      width: 100%;
+      padding: 9px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      transition: background .15s;
+    }
+    .play-btn:hover { background: #252836; }
+    .play-btn svg { width: 14px; height: 14px; fill: currentColor; }
+
+    /* Footer */
+    footer {
+      grid-column: 1 / -1;
+      padding: 10px 24px;
+      border-top: 1px solid var(--border);
+      font-size: 11px;
+      color: var(--muted);
+      display: flex;
+      justify-content: space-between;
+    }
+
+    /* Responsive */
+    @media (max-width: 700px) {
+      body { grid-template-columns: 1fr; grid-template-rows: auto 320px auto auto; }
+      aside { border-left: none; border-top: 1px solid var(--border); }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Perlin Noise</h1>
+  <span class="chip">SIGGRAPH 1985</span>
+  <span class="chip">Ken Perlin</span>
+  <div class="authors">
+    Bruno Petroski Enghi &nbsp;·&nbsp; Lívia Zimermann &nbsp;·&nbsp; Lucas Rodrigues Pinheiro<br>
+    UNIVALI — Tópicos Especiais em Computação Gráfica, 2025/1
+  </div>
+</header>
+
+<div id="canvas-wrap">
+  <canvas id="cv"></canvas>
+  <div id="fps-badge">-- fps</div>
+</div>
+
+<aside>
+
+  <div>
+    <div class="section-title">modo de visualização</div>
+    <div class="mode-grid">
+      <button class="mode-btn active" onclick="setMode(0)">textura</button>
+      <button class="mode-btn"        onclick="setMode(1)">terreno</button>
+      <button class="mode-btn"        onclick="setMode(2)">nuvens</button>
+      <button class="mode-btn"        onclick="setMode(3)">contornos</button>
+    </div>
+  </div>
+
+  <div>
+    <div class="section-title">parâmetros</div>
+    <div class="slider-group">
+
+      <div class="slider-row">
+        <div class="slider-header">
+          <span class="slider-label">escala (frequência)</span>
+          <span class="slider-val" id="vScale">3.5</span>
+        </div>
+        <input type="range" id="sScale" min="0.5" max="12" step="0.1" value="3.5" oninput="upd()">
+      </div>
+
+      <div class="slider-row">
+        <div class="slider-header">
+          <span class="slider-label">oitavas</span>
+          <span class="slider-val" id="vOct">4</span>
+        </div>
+        <input type="range" id="sOct" min="1" max="8" step="1" value="4" oninput="upd()">
+      </div>
+
+      <div class="slider-row">
+        <div class="slider-header">
+          <span class="slider-label">persistência</span>
+          <span class="slider-val" id="vPers">0.50</span>
+        </div>
+        <input type="range" id="sPers" min="0.1" max="0.9" step="0.05" value="0.5" oninput="upd()">
+      </div>
+
+      <div class="slider-row">
+        <div class="slider-header">
+          <span class="slider-label">velocidade</span>
+          <span class="slider-val" id="vSpd">0.18</span>
+        </div>
+        <input type="range" id="sSpd" min="0" max="1.5" step="0.01" value="0.18" oninput="upd()">
+      </div>
+
+    </div>
+  </div>
+
+  <div>
+    <button class="play-btn" id="playBtn" onclick="toggleAnim()">
+      <svg id="playIcon" viewBox="0 0 16 16"><path id="playPath" d="M6 3.5v9L13 8z"/></svg>
+      <span id="playLabel">pausar animação</span>
+    </button>
+  </div>
+
+  <div>
+    <div class="section-title">oitavas individuais</div>
+    <div class="oct-grid" id="octGrid"></div>
+  </div>
+
+</aside>
+
+<footer>
+  <span>Algoritmo: gradient noise + fractal Brownian motion (fBm)</span>
+  <span>Complexidade: O(2ⁿ) por ponto &nbsp;·&nbsp; n = dimensão</span>
+</footer>
+
+<script src="perlin.js"></script>
+<script>
+const perlin = new PerlinNoise(42);
+
+const cv  = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+
+/* Resolução interna reduzida para performance */
+const SCALE = 2;
+let W, H, PW, PH, imgData;
+
+function resize() {
+  const wrap = document.getElementById('canvas-wrap');
+  W = wrap.clientWidth;
+  H = wrap.clientHeight;
+  cv.width  = W;
+  cv.height = H;
+  PW = Math.ceil(W / SCALE);
+  PH = Math.ceil(H / SCALE);
+  imgData = ctx.createImageData(PW, PH);
+  dirty = true;
+}
+
+window.addEventListener('resize', resize);
+resize();
+
+/* Estado */
+let mode = 0, animating = true, t = 0, dirty = true;
+let scale = 3.5, octaves = 4, persistence = 0.5, speed = 0.18;
+
+/* Paletas de cor */
+const lerp = (a, b, t) => a + t * (b - a);
+
+function colorTexture(n) {
+  const g = Math.round((n * .5 + .5) * 255);
+  return [g, g, g];
+}
+
+function colorTerrain(n) {
+  const v = n * .5 + .5;
+  if (v < .35) return [28,  100, 180];
+  if (v < .42) return [60,  130, 200];
+  if (v < .50) return [210, 195, 130];
+  if (v < .65) return [80,  150,  60];
+  if (v < .78) return [55,  100,  40];
+  if (v < .88) return [120, 110, 100];
+  return [230, 230, 235];
+}
+
+function colorCloud(n) {
+  const v = Math.max(0, n * .5 + .5);
+  const t2 = Math.pow(Math.min(v * 1.8, 1), 2.5);
+  return [
+    Math.round(lerp(15,  220, t2)),
+    Math.round(lerp(25,  235, t2)),
+    Math.round(lerp(60,  255, t2)),
+  ];
+}
+
+function colorContour(n) {
+  const v = n * .5 + .5;
+  const frac = (v * 10) % 1;
+  const onLine = frac < .05 || frac > .95;
+  if (onLine) return [62, 207, 142];
+  const g = Math.round(v * 200 + 20);
+  return [g, g, g];
+}
+
+const colFns = [colorTexture, colorTerrain, colorCloud, colorContour];
+
+/* Render principal */
+function render() {
+  const d   = imgData.data;
+  const fn  = colFns[mode];
+
+  for (let py = 0; py < PH; py++) {
+    for (let px = 0; px < PW; px++) {
+      const x = (px / PW) * scale;
+      const y = (py / PH) * scale;
+      const n = perlin.fbm(x, y, t, octaves, persistence);
+      const c = fn(n);
+      const i = (py * PW + px) * 4;
+      d[i]     = c[0];
+      d[i + 1] = c[1];
+      d[i + 2] = c[2];
+      d[i + 3] = 255;
+    }
+  }
+
+  /* Upscale com imageSmoothingEnabled=false para pixel art nítido */
+  const off = new OffscreenCanvas(PW, PH);
+  off.getContext('2d').putImageData(imgData, 0, 0);
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(off, 0, 0, W, H);
+}
+
+/* Visualizador de oitavas */
+function renderOctGrid() {
+  const grid = document.getElementById('octGrid');
+  grid.innerHTML = '';
+  for (let i = 0; i < octaves; i++) {
+    const sz   = 52;
+    const c    = document.createElement('canvas');
+    c.width    = sz; c.height = sz;
+    c.style.cssText = `width:${sz}px;height:${sz}px`;
+
+    const cx   = c.getContext('2d');
+    const id   = cx.createImageData(sz, sz);
+    const freq = Math.pow(2, i);
+
+    for (let py = 0; py < sz; py++) {
+      for (let px = 0; px < sz; px++) {
+        const n = perlin.noise(px / sz * scale * freq, py / sz * scale * freq, t);
+        const g = Math.round((n * .5 + .5) * 255);
+        const ii = (py * sz + px) * 4;
+        id.data[ii] = id.data[ii+1] = id.data[ii+2] = g;
+        id.data[ii+3] = 255;
+      }
+    }
+    cx.putImageData(id, 0, 0);
+
+    const wrap = document.createElement('div');
+    wrap.className = 'oct-item';
+    const lbl = document.createElement('span');
+    lbl.textContent = `oct ${i + 1}`;
+    wrap.appendChild(c);
+    wrap.appendChild(lbl);
+    grid.appendChild(wrap);
+  }
+}
+
+/* UI */
+function upd() {
+  scale       = parseFloat(document.getElementById('sScale').value);
+  octaves     = parseInt(document.getElementById('sOct').value);
+  persistence = parseFloat(document.getElementById('sPers').value);
+  speed       = parseFloat(document.getElementById('sSpd').value);
+  document.getElementById('vScale').textContent = scale.toFixed(1);
+  document.getElementById('vOct').textContent   = octaves;
+  document.getElementById('vPers').textContent  = persistence.toFixed(2);
+  document.getElementById('vSpd').textContent   = speed.toFixed(2);
+  dirty = true;
+}
+
+function setMode(m) {
+  mode = m;
+  document.querySelectorAll('.mode-btn').forEach((b, i) =>
+    b.classList.toggle('active', i === m));
+  dirty = true;
+}
+
+function toggleAnim() {
+  animating = !animating;
+  document.getElementById('playPath').setAttribute('d',
+    animating
+      ? 'M5 3h2v10H5zM9 3h2v10H9z'   // pause icon
+      : 'M6 3.5v9L13 8z');            // play icon
+  document.getElementById('playLabel').textContent =
+    animating ? 'pausar animação' : 'continuar animação';
+}
+
+/* Loop principal */
+let last = 0, frameCount = 0, fpsTimer = 0;
+function loop(ts) {
+  const dt = Math.min((ts - last) / 1000, 0.05);
+  last = ts;
+
+  /* FPS counter */
+  frameCount++;
+  fpsTimer += dt;
+  if (fpsTimer >= 1) {
+    document.getElementById('fps-badge').textContent = `${frameCount} fps`;
+    frameCount = 0; fpsTimer = 0;
+  }
+
+  if (animating) { t += speed * dt; dirty = true; }
+
+  if (dirty) {
+    render();
+    renderOctGrid();
+    dirty = false;
+  }
+
+  requestAnimationFrame(loop);
+}
+
+/* Inicializa como pausado para mostrar ícone correto */
+toggleAnim(); // agora está animando=true, ícone=pause — correto
+
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
