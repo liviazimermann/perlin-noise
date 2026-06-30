@@ -272,6 +272,10 @@ const ctx = cv.getContext('2d');
 const SCALE = 2;
 let W, H, PW, PH, imgData;
 
+/* Estado — declarado ANTES de resize(), que escreve em `dirty` */
+let mode = 0, animating = false, t = 0, dirty = true;
+let scale = 3.5, octaves = 4, persistence = 0.5, speed = 0.18;
+
 function resize() {
   const wrap = document.getElementById('canvas-wrap');
   W = wrap.clientWidth  || 640;
@@ -286,10 +290,6 @@ function resize() {
 
 window.addEventListener('resize', resize);
 resize();
-
-/* Estado */
-let mode = 0, animating = true, t = 0, dirty = true;
-let scale = 3.5, octaves = 4, persistence = 0.5, speed = 0.18;
 
 /* Paletas de cor */
 const lerp = (a, b, t) => a + t * (b - a);
@@ -448,8 +448,9 @@ function loop(ts) {
   requestAnimationFrame(loop);
 }
 
-/* Inicializa como pausado para mostrar ícone correto */
-toggleAnim(); // agora está animando=true, ícone=pause — correto
+/* animating começa false; este toggle liga a animação e sincroniza
+   o ícone (pause) e o rótulo ("pausar animação") de uma só vez. */
+toggleAnim();
 
 requestAnimationFrame(loop);
 </script>

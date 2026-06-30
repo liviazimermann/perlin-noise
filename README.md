@@ -13,9 +13,38 @@ UNIVALI — Universidade do Vale do Itajaí, 2025/1
 
 ---
 
-## Demo
+## Como rodar localmente
 
-Abra `index.html` diretamente no navegador — nenhuma instalação necessária.
+Não há dependências nem build — é HTML + JavaScript puro.
+
+**Opção 1 — abrir direto (mais simples)**
+
+Clone o repositório e abra o arquivo no navegador:
+
+```bash
+git clone https://github.com/liviazimermann/perlin-noise.git
+cd perlin-noise
+```
+
+Em seguida dê duplo-clique em `index.html` ou abra pelo terminal:
+
+```bash
+xdg-open index.html   # Linux
+open index.html       # macOS
+start index.html      # Windows
+```
+
+**Opção 2 — servidor local (recomendado)**
+
+Servir via HTTP evita restrições de `file://` em alguns navegadores. Na raiz do projeto, use qualquer um:
+
+```bash
+python3 -m http.server 8000      # Python
+npx serve .                      # Node.js
+php -S localhost:8000            # PHP
+```
+
+Depois acesse <http://localhost:8000> no navegador.
 
 Ou acesse a versão online via GitHub Pages (se habilitado no repositório).
 
